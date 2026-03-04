@@ -1,0 +1,39 @@
+[project]
+name = "data-exchange-api"
+version = "0.1.0"
+description = "Demand Planning Data Exchange API — Bronze/Silver/Gold pipeline + FastAPI"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # API
+    "fastapi==0.111.0",
+    "uvicorn[standard]==0.30.1",
+    "databricks-sql-connector==3.3.0",
+    "pydantic==2.7.1",
+    "pydantic-settings==2.3.0",
+    # Data processing helpers (local/scripts)
+    "pandas>=1.2.5,<=2.1.4",
+    # pyarrow is needed only in Databricks notebooks (pre-installed); remove for local env
+    # Testing
+    "pytest==8.2.2",
+    "pytest-asyncio==0.23.7",
+    "httpx==0.27.0",
+    "pytest-cov==5.0.0",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "ruff==0.4.7",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+

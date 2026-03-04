@@ -1,0 +1,67 @@
+name: CD — Deploy to Databricks
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy-notebooks:
+    name: Deploy notebooks to Databricks Workspace
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Databricks CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+
+      - name: Configure Databricks CLI
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: |
+          databricks configure --token <<EOF
+          $DATABRICKS_HOST
+          $DATABRICKS_TOKEN
+          EOF
+
+      - name: Deploy notebooks to Workspace
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          WORKSPACE_PATH: /Repos/${{ secrets.DATABRICKS_USER }}/data-exchange-api
+        run: |
+          # Upload each notebook (strip .py extension for Databricks source format)
+          for notebook in notebooks/*.py; do
+            name=$(basename "$notebook" .py)
+            echo "Deploying $name..."
+            databricks workspace import \
+              --language PYTHON \
+              --overwrite \
+              "$notebook" \
+              "${WORKSPACE_PATH}/notebooks/${name}"
+          done
+          echo "All notebooks deployed."
+
+      - name: Update Databricks Workflow definition
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: |
+          # Check if job exists; create or update
+          JOB_NAME="demand-planning-pipeline"
+          JOB_ID=$(databricks jobs list --output JSON | \
+            python3 -c "import json,sys; jobs=json.load(sys.stdin).get('jobs',[]); \
+            match=[j['job_id'] for j in jobs if j['settings']['name']=='$JOB_NAME']; \
+            print(match[0] if match else '')")
+
+          if [ -z "$JOB_ID" ]; then
+            echo "Creating new Databricks Workflow..."
+            databricks jobs create --json @workflow/demand_pipeline.json
+          else
+            echo "Updating existing Databricks Workflow (job_id=$JOB_ID)..."
+            databricks jobs reset --job-id "$JOB_ID" --json @workflow/demand_pipeline.json
+          fi
